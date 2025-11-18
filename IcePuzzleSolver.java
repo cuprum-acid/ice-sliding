@@ -2,14 +2,13 @@ import java.util.*;
 
 public class IcePuzzleSolver {
     
-    // Представление состояния игры
     static class State implements Comparable<State> {
         int playerX, playerY;
         char[][] board;
-        int moves; // количество ходов
-        int cost; // f(x) = moves + heuristic
+        int moves;
+        int cost;
         State parent;
-        String action; // последнее действие
+        String action;
         
         public State(int playerX, int playerY, char[][] board, int moves, State parent, String action) {
             this.playerX = playerX;
@@ -21,7 +20,6 @@ public class IcePuzzleSolver {
             this.cost = moves + heuristic();
         }
         
-        // Копирование доски
         private char[][] copyBoard(char[][] original) {
             char[][] copy = new char[original.length][original[0].length];
             for (int i = 0; i < original.length; i++) {
@@ -30,7 +28,6 @@ public class IcePuzzleSolver {
             return copy;
         }
         
-        // Эвристика: манхэттенское расстояние до цели
         private int heuristic() {
             int minDistance = Integer.MAX_VALUE;
             for (int i = 0; i < board.length; i++) {
@@ -54,7 +51,7 @@ public class IcePuzzleSolver {
             if (this == obj) return true;
             if (obj == null || getClass() != obj.getClass()) return false;
             State state = (State) obj;
-            return playerX == state.playerY && 
+            return playerX == state.playerX && 
                    playerY == state.playerY && 
                    Arrays.deepEquals(board, state.board);
         }
@@ -63,23 +60,30 @@ public class IcePuzzleSolver {
         public int hashCode() {
             return Objects.hash(playerX, playerY, Arrays.deepHashCode(board));
         }
+        
+        @Override
+        public String toString() {
+            return "(" + playerX + "," + playerY + ")";
+        }
     }
     
-    // Алгоритм A* для Ice Puzzle
     public static List<String> solveIcePuzzle(char[][] initialBoard, int startX, int startY) {
         PriorityQueue<State> openSet = new PriorityQueue<>();
         Set<State> visited = new HashSet<>();
         
-        // Начальное состояние
         State start = new State(startX, startY, initialBoard, 0, null, "Start");
         openSet.add(start);
         visited.add(start);
         
+        int statesExplored = 0;
+        
         while (!openSet.isEmpty()) {
             State current = openSet.poll();
+            statesExplored++;
             
             // Проверка на победу
-            if (isGoalState(current)) {
+            if (current.board[current.playerX][current.playerY] == 'G') {
+                System.out.println("Цель достигнута! Состояний исследовано: " + statesExplored);
                 return reconstructSolution(current);
             }
             
@@ -90,26 +94,26 @@ public class IcePuzzleSolver {
                     visited.add(neighbor);
                 }
             }
+            
+            if (statesExplored > 10000) {
+                System.out.println("Прервано: слишком много состояний");
+                break;
+            }
         }
         
-        return new ArrayList<>(); // Решение не найдено
+        System.out.println("Цель не достигнута. Состояний исследовано: " + statesExplored);
+        return new ArrayList<>();
     }
     
-    // Проверка, является ли состояние целевым
-    private static boolean isGoalState(State state) {
-        return state.board[state.playerX][state.playerY] == 'G';
-    }
-    
-    // Генерация всех возможных ходов-скольжений
     private static List<State> generateNeighbors(State state) {
         List<State> neighbors = new ArrayList<>();
-        int[] dx = {-1, 1, 0, 0}; // Вверх, вниз, влево, вправо
+        int[] dx = {-1, 1, 0, 0};
         int[] dy = {0, 0, -1, 1};
         String[] directions = {"UP", "DOWN", "LEFT", "RIGHT"};
         
         for (int i = 0; i < 4; i++) {
             State slideResult = simulateSlide(state, dx[i], dy[i], directions[i]);
-            if (slideResult != null && !slideResult.equals(state)) {
+            if (slideResult != null) {
                 neighbors.add(slideResult);
             }
         }
@@ -117,7 +121,6 @@ public class IcePuzzleSolver {
         return neighbors;
     }
     
-    // Симуляция скольжения в заданном направлении
     private static State simulateSlide(State state, int dx, int dy, String direction) {
         int x = state.playerX;
         int y = state.playerY;
@@ -126,25 +129,25 @@ public class IcePuzzleSolver {
         int newX = x;
         int newY = y;
         
-        // Скользим пока не упремся в препятствие
+        // Скользим пока не упремся в препятствие или границу
         while (true) {
             int nextX = newX + dx;
             int nextY = newY + dy;
             
             // Проверка границ
             if (nextX < 0 || nextX >= board.length || nextY < 0 || nextY >= board[0].length) {
-                break;
+                break; // Достигли границы - останавливаемся
             }
             
             // Проверка на препятствие
             if (board[nextX][nextY] == 'X') {
-                break;
+                break; // Достигли препятствия - останавливаемся
             }
             
             newX = nextX;
             newY = nextY;
             
-            // Если наткнулись на цель или остановились на месте
+            // Если достигли цели - останавливаемся
             if (board[newX][newY] == 'G') {
                 break;
             }
@@ -155,24 +158,21 @@ public class IcePuzzleSolver {
             return null;
         }
         
-        // Создаем новое состояние (доска не меняется, кроме позиции игрока)
         return new State(newX, newY, board, state.moves + 1, state, direction);
     }
     
-    // Восстановление решения
     private static List<String> reconstructSolution(State goalState) {
         List<String> solution = new ArrayList<>();
         State current = goalState;
         
         while (current.parent != null) {
-            solution.add(0, current.action + " to (" + current.playerX + "," + current.playerY + ")");
+            solution.add(0, current.action + " to " + current);
             current = current.parent;
         }
         
         return solution;
     }
     
-    // Визуализация доски
     public static void printBoard(char[][] board, int playerX, int playerY) {
         for (int i = 0; i < board.length; i++) {
             for (int j = 0; j < board[i].length; j++) {
@@ -187,58 +187,17 @@ public class IcePuzzleSolver {
         System.out.println();
     }
     
-    // Пример использования
-    public static void main(String[] args) {
-        // Пример уровня Ice Puzzle:
-        // 'P' - игрок, 'X' - препятствие, 'G' - цель, '.' - лед
-        char[][] board_old = {
-            {'.', '.', '.', 'X', '.'},
-            {'.', 'X', '.', '.', '.'},
-            {'.', '.', '.', 'X', '.'},
-            {'X', '.', '.', '.', 'G'},
-            {'.', '.', 'X', '.', '.'}
-        };
-
-        char[][] board = {
-            {'.', '.', '.', 'X', '.', '.', '.', 'G', 'X', '.',  '.', '.', '.', 'X', '.'},
-            {'.', 'X', '.', '.', '.','.', 'X', '.', '.', '.','.', 'X', '.', '.', '.'},
-            {'.', '.', '.', 'X', '.', '.', '.', '.', 'X', '.', '.', '.', '.', 'X', '.'},
-            {'X', '.', '.', '.', '.', '.', '.', '.', 'X', '.', '.', '.', '.', 'X', '.'},
-            {'.', '.', 'X', '.', '.', '.', '.', 'X', '.', '.', '.', '.', 'X', '.', '.'}
-        };
-        
-        int startX = 0, startY = 0; // Стартовая позиция
-        
-        System.out.println("Исходная доска:");
-        printBoard(board, startX, startY);
-        
-        List<String> solution = solveIcePuzzle(board, startX, startY);
-        
-        if (solution.isEmpty()) {
-            System.out.println("Решение не найдено!");
-        } else {
-            System.out.println("Решение найдено за " + solution.size() + " ходов:");
-            for (int i = 0; i < solution.size(); i++) {
-                System.out.println((i + 1) + ". " + solution.get(i));
-            }
-            
-            // Визуализация решения
-            System.out.println("\nВизуализация решения:");
-            visualizeSolution(board, startX, startY, solution);
-        }
-    }
-    
-    // Дополнительный метод для визуализации всего решения
-    private static void visualizeSolution(char[][] initialBoard, int startX, int startY, List<String> solution) {
+    // Визуализация пути по шагам
+    public static void visualizePath(char[][] initialBoard, List<String> solution) {
         char[][] board = copyBoard(initialBoard);
-        int x = startX, y = startY;
+        int x = 0, y = 0; // стартовая позиция
         
-        System.out.println("Начальная позиция:");
+        System.out.println("ШАГ 0 - Начало:");
         printBoard(board, x, y);
         
-        for (String move : solution) {
-            String[] parts = move.split(" ");
-            String direction = parts[0];
+        for (int step = 0; step < solution.size(); step++) {
+            String move = solution.get(step);
+            String direction = move.split(" ")[0];
             
             // Определяем направление
             int dx = 0, dy = 0;
@@ -249,7 +208,8 @@ public class IcePuzzleSolver {
                 case "RIGHT": dy = 1; break;
             }
             
-            // Скользим
+            // Выполняем скольжение
+            int startX = x, startY = y;
             while (true) {
                 int nextX = x + dx;
                 int nextY = y + dy;
@@ -265,7 +225,7 @@ public class IcePuzzleSolver {
                 if (board[x][y] == 'G') break;
             }
             
-            System.out.println("После хода: " + move);
+            System.out.println("ШАГ " + (step + 1) + " - " + move + " (из (" + startX + "," + startY + ")):");
             printBoard(board, x, y);
         }
     }
@@ -276,5 +236,37 @@ public class IcePuzzleSolver {
             System.arraycopy(original[i], 0, copy[i], 0, original[i].length);
         }
         return copy;
+    }
+    
+    public static void main(String[] args) {
+
+        char[][] board = {
+            {'P', '.', '.', 'X', '.', 'X', 'G'},
+            {'X', 'X', '.', 'X', '.', 'X', '.'},
+            {'.', '.', '.', 'X', '.', 'X', '.'},
+            {'.', 'X', 'X', 'X', '.', 'X', '.'},
+            {'.', '.', '.', '.', '.', 'X', '.'},
+            {'.', 'X', 'X', 'X', 'X', 'X', '.'},
+            {'.', '.', '.', '.', '.', '.', '.'}
+        };
+        
+        int startX = 0, startY = 0;
+        
+        System.out.println("Исходная доска:");
+        printBoard(board, startX, startY);
+        
+        List<String> solution = solveIcePuzzle(board, startX, startY);
+        
+        if (solution.isEmpty()) {
+            System.out.println("Решение не найдено!");
+        } else {
+            System.out.println("Решение найдено за " + solution.size() + " ходов:");
+            for (int i = 0; i < solution.size(); i++) {
+                System.out.println((i + 1) + ". " + solution.get(i));
+            }
+            
+            System.out.println("\nДетальная визуализация:");
+            visualizePath(board, solution);
+        }
     }
 }
